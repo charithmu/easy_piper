@@ -1,0 +1,9 @@
+[submodule "piper_sdk"]
+	path = piper_sdk
+	url = https://github.com/charithmu/piper_sdk.git
+[submodule "piper_sdk_ui"]
+	path = piper_sdk_ui
+	url = <REPLACE_WITH_PIPER_SDK_UI_REPO_URL>
+[submodule "piper_sdk_gui"]
+	path = piper_sdk_gui
+	url = https://github.com/charithmu/Piper_sdk_ui.git
