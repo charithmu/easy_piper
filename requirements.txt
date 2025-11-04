@@ -1,0 +1,33 @@
+# EasyPiper Requirements
+# Python wrapper for Piper robotic arm control with data recording capabilities
+
+# Core dependencies (required)
+numpy>=1.21.0        # Numerical operations
+python-can>=3.3.4    # CAN bus communication
+
+# Data recording for imitation learning (required for recorder)
+h5py>=3.8.0          # HDF5 file format for efficient data storage
+
+# Standard library dependencies (usually included with Python, listed for clarity)
+# - argparse (stdlib)
+# - json (stdlib)
+# - threading (stdlib)
+# - traceback (stdlib)
+# - select (stdlib - Unix/Linux only, not available on Windows)
+# - pathlib (stdlib)
+# - datetime (stdlib)
+# - typing (stdlib)
+# - time (stdlib)
+# - os (stdlib)
+# - sys (stdlib)
+# - math (stdlib)
+
+# Visualization (optional)
+matplotlib>=3.5.0    # Plotting trajectories and analysis
+
+# Optional: LeRobot library for using recorded data in imitation learning
+# lerobot              # Uncomment to install LeRobot for training
+
+# Note: piper_sdk should be installed from the submodule
+# After cloning with submodules:
+#   cd piper_sdk && pip install -e .

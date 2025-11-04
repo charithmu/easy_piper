@@ -1,0 +1,24 @@
+# Include documentation
+include README.md
+include LICENSE
+include SETUP_GUIDE.md
+include CONTRIBUTING.md
+recursive-include docs *.md
+
+# Include shell scripts
+recursive-include scripts *.sh
+
+# Include examples
+recursive-include examples *.py
+
+# Include requirements
+include requirements.txt
+
+# Exclude unnecessary files
+recursive-exclude notebooks *
+recursive-exclude tests *
+recursive-exclude .ipynb_checkpoints *
+exclude .gitignore
+exclude .gitmodules
+global-exclude __pycache__
+global-exclude *.py[cod]
