@@ -8,6 +8,9 @@ python-can>=3.3.4    # CAN bus communication
 # Data recording for imitation learning (required for recorder)
 h5py>=3.8.0          # HDF5 file format for efficient data storage
 
+# Camera recording (optional, required for --enable-cameras)
+opencv-python>=4.8.0 # Camera capture and image processing
+
 # Standard library dependencies (usually included with Python, listed for clarity)
 # - argparse (stdlib)
 # - json (stdlib)

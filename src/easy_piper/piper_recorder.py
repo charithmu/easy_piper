@@ -2,11 +2,12 @@
 """
 Piper Recorder - Record robot arm trajectories for imitation learning
 
-Records Piper robot arm joint angles and gripper positions in LeRobot format.
+Records Piper robot arm joint angles, gripper positions, and camera images in LeRobot format.
 Compatible with the LeRobot library for training imitation learning policies.
 
 LeRobot format specification:
 - HDF5 file structure with datasets for observations and actions
+- Camera images stored as individual PNG files, then encoded to video
 - Timestamps for each frame
 - Episode-based recording
 - Metadata about robot configuration
@@ -34,6 +35,9 @@ Examples:
     
     # Use specific CAN device and output directory
     piper-recorder --can-name can_piper --output-dir ./recordings
+    
+    # Record with cameras
+    piper-recorder --enable-cameras
 """
 
 import numpy as np
@@ -47,6 +51,7 @@ import threading
 import traceback
 import select
 import h5py
+import cv2
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
@@ -86,9 +91,12 @@ class LeRobotDataRecorder:
     - Each episode is stored in an HDF5 file
     - Datasets include:
         - observation/state: Joint angles (6 joints) + gripper position
+        - observation/images/table_cam: ZED 2i left camera frames
+        - observation/images/wrist_cam: Orbbec camera frames
         - action: Next state (for behavior cloning)
         - timestamp: Frame timestamps
         - episode_index: Episode number
+    - Images stored as PNG files during recording, then encoded to video
     - Metadata includes robot configuration and recording info
 
     Attributes:
@@ -97,15 +105,19 @@ class LeRobotDataRecorder:
         recording: Whether currently recording
         current_episode: Current episode data buffer
         episode_name: Name of current episode
+        cameras_enabled: Whether to record camera images
+        table_cam: OpenCV VideoCapture for ZED 2i (index 6)
+        wrist_cam: OpenCV VideoCapture for Orbbec (index 4)
     """
 
-    def __init__(self, arm: EasyPiper, output_dir: str = None):
+    def __init__(self, arm: EasyPiper, output_dir: str = None, enable_cameras: bool = False):
         """
         Initialize the recorder.
 
         Args:
             arm: Connected EasyPiper instance
             output_dir: Directory to save recording files (default: project_root/recordings)
+            enable_cameras: Whether to enable camera recording (default: False)
         """
         if output_dir is None:
             output_dir = DEFAULT_RECORDINGS_DIR
@@ -128,9 +140,116 @@ class LeRobotDataRecorder:
         self.n_gripper = 1
         self.state_dim = self.n_joints + self.n_gripper
 
+        # Camera configuration
+        self.cameras_enabled = enable_cameras
+        self.table_cam = None  # ZED 2i camera (index 6)
+        self.wrist_cam = None  # Orbbec camera (index 4)
+        
+        if self.cameras_enabled:
+            self._init_cameras()
+
         print("LeRobot Data Recorder initialized")
         print(f"Output directory: {self.output_dir.absolute()}")
         print(f"Recording frequency: {self.fps} Hz")
+        print(f"Cameras enabled: {self.cameras_enabled}")
+
+    def _init_cameras(self) -> None:
+        """Initialize camera connections."""
+        import cv2
+        
+        try:
+            # Initialize ZED 2i (table camera)
+            self.table_cam = cv2.VideoCapture(6, cv2.CAP_V4L2)
+            if self.table_cam.isOpened():
+                self.table_cam.set(cv2.CAP_PROP_FRAME_WIDTH, 2560)
+                self.table_cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+                self.table_cam.set(cv2.CAP_PROP_FPS, 30)
+                # Warmup
+                for _ in range(30):
+                    self.table_cam.read()
+                print("✓ Table camera (ZED 2i) connected")
+            else:
+                print("⚠️  Failed to open table camera (ZED 2i)")
+                self.table_cam = None
+
+            # Initialize Orbbec (wrist camera)
+            self.wrist_cam = cv2.VideoCapture(4, cv2.CAP_V4L2)
+            if self.wrist_cam.isOpened():
+                self.wrist_cam.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M','J','P','G'))
+                self.wrist_cam.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+                self.wrist_cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+                self.wrist_cam.set(cv2.CAP_PROP_FPS, 30)
+                # Warmup
+                for _ in range(30):
+                    self.wrist_cam.read()
+                print("✓ Wrist camera (Orbbec) connected")
+            else:
+                print("⚠️  Failed to open wrist camera (Orbbec)")
+                self.wrist_cam = None
+                
+        except Exception as e:
+            print(f"⚠️  Error initializing cameras: {e}")
+            self.cameras_enabled = False
+            self.table_cam = None
+            self.wrist_cam = None
+
+    def _capture_camera_images(self) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        """
+        Capture images from both cameras.
+        
+        Returns:
+            Tuple of (table_cam_image, wrist_cam_image). Images are None if capture fails.
+        """
+        table_img = None
+        wrist_img = None
+        
+        if self.table_cam is not None:
+            ret, frame = self.table_cam.read()
+            if ret:
+                # Extract left image from stereo pair
+                table_img = frame[:, :1280]
+        
+        if self.wrist_cam is not None:
+            ret, frame = self.wrist_cam.read()
+            if ret:
+                wrist_img = frame
+                
+        return table_img, wrist_img
+
+    def _save_camera_images(self, table_img: np.ndarray, wrist_img: np.ndarray, 
+                           episode_dir: Path, frame_idx: int) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Save camera images as PNG files.
+        
+        Args:
+            table_img: Table camera image
+            wrist_img: Wrist camera image  
+            episode_dir: Directory for this episode's images
+            frame_idx: Frame index
+            
+        Returns:
+            Tuple of (table_img_path, wrist_img_path) relative to episode dir
+        """
+        import cv2
+        
+        table_path = None
+        wrist_path = None
+        
+        if table_img is not None:
+            table_dir = episode_dir / "observation.images.table_cam"
+            table_dir.mkdir(parents=True, exist_ok=True)
+            table_file = table_dir / f"frame_{frame_idx:06d}.png"
+            cv2.imwrite(str(table_file), table_img)
+            table_path = str(table_file.relative_to(self.output_dir))
+            
+        if wrist_img is not None:
+            wrist_dir = episode_dir / "observation.images.wrist_cam"
+            wrist_dir.mkdir(parents=True, exist_ok=True)
+            wrist_file = wrist_dir / f"frame_{frame_idx:06d}.png"
+            cv2.imwrite(str(wrist_file), wrist_img)
+            wrist_path = str(wrist_file.relative_to(self.output_dir))
+            
+        return table_path, wrist_path
 
     def check_data_streaming(self) -> Tuple[bool, str]:
         """
@@ -217,21 +336,32 @@ class LeRobotDataRecorder:
             'timestamp': [],    # Frame timestamps
             'frame_index': []   # Frame indices
         }
+        
+        # Add camera data storage if cameras enabled
+        if self.cameras_enabled:
+            self.current_episode['observation_images_table_cam'] = []
+            self.current_episode['observation_images_wrist_cam'] = []
 
         self.recording = True
-        print(f"✓ Started recording episode: '{episode_name}'")
-        print(f"  Recording at {self.fps} Hz (press 'stop' to finish)")
+        camera_status = "with cameras" if self.cameras_enabled else "without cameras"
+        print(f"✓ Started recording episode: '{episode_name}' {camera_status}")
+        print(f"  Recording at {self.fps} Hz")
+        print(f"  Press ENTER to stop recording...")
 
         return True
 
     def record_frame(self) -> bool:
         """
-        Record one frame of data.
+        Record one frame of data including robot state and camera images.
 
         Returns:
             True if frame recorded successfully, False otherwise
         """
         if not self.recording:
+            return False
+
+        # Check if episode buffer exists (may have been cleared)
+        if not self.current_episode or 'observation' not in self.current_episode:
             return False
 
         state = self.get_current_state()
@@ -249,6 +379,20 @@ class LeRobotDataRecorder:
         frame_idx = len(self.current_episode['observation']) - 1
         self.current_episode['frame_index'].append(frame_idx)
 
+        # Capture and save camera images if enabled
+        if self.cameras_enabled and 'observation_images_table_cam' in self.current_episode:
+            table_img, wrist_img = self._capture_camera_images()
+            
+            # Create episode-specific image directory
+            episode_dir = self.output_dir / f"{self.episode_name}_images"
+            
+            table_path, wrist_path = self._save_camera_images(
+                table_img, wrist_img, episode_dir, frame_idx
+            )
+            
+            self.current_episode['observation_images_table_cam'].append(table_path)
+            self.current_episode['observation_images_wrist_cam'].append(wrist_path)
+
         return True
 
     def stop_episode(self) -> Optional[Path]:
@@ -262,7 +406,11 @@ class LeRobotDataRecorder:
             print("❌ Not currently recording")
             return None
 
+        # Stop recording flag first to signal the thread
         self.recording = False
+        
+        # Give the recording thread a moment to finish current frame
+        time.sleep(0.1)
 
         # Check if we have data
         n_frames = len(self.current_episode['observation'])
@@ -307,6 +455,27 @@ class LeRobotDataRecorder:
                 f.create_dataset('episode_index',
                                  data=np.full(n_frames, 0, dtype=np.int64))
 
+                # Save camera image paths if cameras were enabled
+                if self.cameras_enabled:
+                    if 'observation_images_table_cam' in self.current_episode:
+                        table_paths = self.current_episode['observation_images_table_cam']
+                        if table_paths and table_paths[0] is not None:
+                            # Store as variable-length string dataset
+                            dt = h5py.string_dtype(encoding='utf-8')
+                            f.create_dataset('observation/images/table_cam',
+                                           data=np.array(table_paths, dtype=dt),
+                                           compression='gzip',
+                                           compression_opts=9)
+                    
+                    if 'observation_images_wrist_cam' in self.current_episode:
+                        wrist_paths = self.current_episode['observation_images_wrist_cam']
+                        if wrist_paths and wrist_paths[0] is not None:
+                            dt = h5py.string_dtype(encoding='utf-8')
+                            f.create_dataset('observation/images/wrist_cam',
+                                           data=np.array(wrist_paths, dtype=dt),
+                                           compression='gzip',
+                                           compression_opts=9)
+
                 # Add metadata
                 f.attrs['episode_name'] = self.episode_name
                 f.attrs['n_frames'] = n_frames
@@ -314,6 +483,7 @@ class LeRobotDataRecorder:
                 f.attrs['state_dim'] = self.state_dim
                 f.attrs['n_joints'] = self.n_joints
                 f.attrs['n_gripper'] = self.n_gripper
+                f.attrs['cameras_enabled'] = self.cameras_enabled
                 f.attrs['duration_seconds'] = self.current_episode['timestamp'][-1]
                 f.attrs['recording_date'] = datetime.now().isoformat()
                 f.attrs['robot_type'] = 'Piper'
@@ -324,6 +494,19 @@ class LeRobotDataRecorder:
                 # LeRobot metadata
                 f.attrs['format'] = 'lerobot'
                 f.attrs['format_version'] = '1.0'
+                
+                # Camera metadata
+                if self.cameras_enabled:
+                    f.attrs['camera_names'] = json.dumps(['table_cam', 'wrist_cam'])
+                    f.attrs['table_cam_info'] = json.dumps({
+                        'device': 'ZED 2i',
+                        'resolution': '1280x720',
+                        'source': 'left camera of stereo pair'
+                    })
+                    f.attrs['wrist_cam_info'] = json.dumps({
+                        'device': 'Orbbec',
+                        'resolution': '1280x720'
+                    })
 
             # Save episode info to JSON for easy reference
             info_file = self.output_dir / \
@@ -335,6 +518,7 @@ class LeRobotDataRecorder:
                 'duration_seconds': float(self.current_episode['timestamp'][-1]),
                 'fps': self.fps,
                 'state_dim': self.state_dim,
+                'cameras_enabled': self.cameras_enabled,
                 'recording_date': datetime.now().isoformat(),
                 'state_stats': {
                     'mean': observations.mean(axis=0).tolist(),
@@ -343,6 +527,9 @@ class LeRobotDataRecorder:
                     'max': observations.max(axis=0).tolist(),
                 }
             }
+            
+            if self.cameras_enabled:
+                episode_info['cameras'] = ['table_cam', 'wrist_cam']
 
             with open(info_file, 'w', encoding='utf-8') as f:
                 json.dump(episode_info, f, indent=2)
@@ -366,6 +553,15 @@ class LeRobotDataRecorder:
             print(f"❌ Error saving episode: {e}")
             traceback.print_exc()
             return None
+
+    def cleanup_cameras(self) -> None:
+        """Release camera resources."""
+        if self.table_cam is not None:
+            self.table_cam.release()
+            self.table_cam = None
+        if self.wrist_cam is not None:
+            self.wrist_cam.release()
+            self.wrist_cam = None
 
     def get_status(self) -> str:
         """
@@ -531,6 +727,12 @@ Interactive commands:
         help='Disable automatic CAN setup'
     )
 
+    parser.add_argument(
+        '--enable-cameras',
+        action='store_true',
+        help='Enable camera recording (table_cam: ZED 2i, wrist_cam: Orbbec)'
+    )
+
     # Non-interactive debug mode: optional value means duration in seconds;
     # if provided without value, runs continuously until killed.
     parser.add_argument(
@@ -548,7 +750,7 @@ def print_help():
     """Print available commands."""
     print("\nAvailable commands:")
     print("  start <episode_name>  - Start recording a new episode")
-    print("  stop                  - Stop and save current episode")
+    print("  ENTER                 - Stop current recording (when recording)")
     print("  status                - Show recording status and current robot state")
     print("  help                  - Show this help message")
     print("  quit / exit           - Exit recorder")
@@ -581,7 +783,7 @@ def main():
         return 1
 
     # Create recorder
-    recorder = LeRobotDataRecorder(arm, output_dir=args.output_dir)
+    recorder = LeRobotDataRecorder(arm, output_dir=args.output_dir, enable_cameras=args.enable_cameras)
     recorder.fps = args.fps
     recorder.frame_time = 1.0 / args.fps
 
@@ -635,9 +837,16 @@ def main():
             # Get user input
             try:
                 if recorder.recording:
-                    # Non-blocking input simulation (check for stop)
+                    # Non-blocking input check - pressing Enter stops recording
                     if select.select([0], [], [], 0.1)[0]:
                         user_input = input().strip().lower()
+                        # Empty input (just Enter) or 'stop' stops recording
+                        if user_input == '' or user_input == 'stop':
+                            recorder.stop_episode()
+                            if recording_thread:
+                                recording_thread.join(timeout=1.0)
+                                recording_thread = None
+                            continue
                     else:
                         continue
                 else:
@@ -676,15 +885,6 @@ def main():
                     )
                     recording_thread.start()
 
-            elif command == 'stop':
-                if recorder.recording:
-                    recorder.stop_episode()
-                    if recording_thread:
-                        recording_thread.join(timeout=1.0)
-                        recording_thread = None
-                else:
-                    print("⚪ Not currently recording")
-
             elif command == 'status':
                 print(recorder.get_status())
                 if not recorder.recording:
@@ -707,10 +907,13 @@ def main():
             recorder.stop_episode()
 
     finally:
-        print("\nDisconnecting from robot...")
+        print("\nCleaning up...")
+        if recorder.cameras_enabled:
+            recorder.cleanup_cameras()
+            print("✓ Cameras released")
         try:
             arm.disconnect()
-            print("✓ Disconnected")
+            print("✓ Robot disconnected")
         except Exception:
             pass
 

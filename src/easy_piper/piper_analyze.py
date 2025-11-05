@@ -42,7 +42,7 @@ def load_episode(filepath: str):
         filepath: Path to HDF5 file
         
     Returns:
-        Dictionary with observations, actions, timestamps, and metadata
+        Dictionary with observations, actions, timestamps, metadata, and camera info
     """
     with h5py.File(filepath, 'r') as f:
         data = {
@@ -51,6 +51,13 @@ def load_episode(filepath: str):
             'timestamps': f['timestamp'][:],
             'metadata': {key: f.attrs[key] for key in f.attrs.keys()}
         }
+        
+        # Load camera image paths if available
+        data['cameras'] = {}
+        if 'observation/images/table_cam' in f:
+            data['cameras']['table_cam'] = f['observation/images/table_cam'][:].astype(str)
+        if 'observation/images/wrist_cam' in f:
+            data['cameras']['wrist_cam'] = f['observation/images/wrist_cam'][:].astype(str)
     
     return data
 
@@ -70,6 +77,15 @@ def print_episode_info(data: dict):
     print(f"  Frames: {meta['n_frames']}")
     print(f"  FPS: {meta['fps']}")
     print(f"  Robot: {meta['robot_type']}")
+    
+    # Display camera info if available
+    if meta.get('cameras_enabled', False):
+        print(f"  Cameras: Enabled")
+        if 'camera_names' in meta:
+            camera_names = json.loads(meta['camera_names'])
+            print(f"    - {', '.join(camera_names)}")
+        if len(data.get('cameras', {})) > 0:
+            print(f"    - Images recorded: {len(list(data['cameras'].values())[0])} frames")
     
     print(f"\nData Shape:")
     print(f"  Observations: {obs.shape}")
