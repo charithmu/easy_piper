@@ -137,15 +137,20 @@ easy_piper/
 │   └── easy_piper/            # Main package
 │       ├── __init__.py        # Package initialization
 │       ├── easy_piper.py      # Core EasyPiper class
-│       └── piper_recorder.py  # Data recorder for imitation learning
+│       ├── piper_recorder.py  # Data recorder for imitation learning
+│       └── piper_analyze.py   # Recording analysis and visualization
 ├── examples/                  # Example scripts
 │   ├── simple_example.py
 │   ├── easy_piper_demo.py
 │   ├── test_recorder_setup.py
 │   └── quick_start_recorder.py
 ├── scripts/                   # Utility scripts
-│   ├── can_activate.sh
-│   └── find_all_can_port.sh
+│   ├── can_activate.sh              # CAN device activation
+│   ├── find_all_can_port.sh         # CAN device discovery
+│   ├── upload_to_huggingface.py     # Upload datasets to Hugging Face
+│   ├── hf_login.py                  # Hugging Face authentication
+│   ├── crop_table_cam_images.py     # Image processing for table camera
+│   └── flip_wrist_cam_images.py     # Image processing for wrist camera
 ├── docs/                      # Documentation
 │   ├── EASY_PIPER_README.md
 │   ├── EASY_PIPER_CHEATSHEET.md
@@ -169,6 +174,7 @@ easy_piper/
 - [**Quick Card**](docs/EASY_PIPER_QUICK_CARD.md) - Ultra-condensed reference
 - [**Recorder Guide**](docs/PIPER_RECORDER_README.md) - Data recording documentation
 - [**CAN Setup**](docs/CAN_SETUP_GUIDE.md) - Detailed CAN configuration guide
+- [**Hugging Face Upload**](docs/HUGGINGFACE_UPLOAD_GUIDE.md) - Upload datasets to Hugging Face
 - [**Mode Switching**](docs/MODE_SWITCH_CHEATSHEET.md) - SDK mode control reference
 
 ## 🛠️ CAN Device Setup
@@ -184,6 +190,42 @@ EasyPiper automatically detects and configures CAN devices. For manual setup:
 ```
 
 See [docs/CAN_SETUP_GUIDE.md](docs/CAN_SETUP_GUIDE.md) for detailed instructions.
+
+## 🔧 Command-Line Tools
+
+EasyPiper includes several CLI tools for common workflows:
+
+### Data Recording
+```bash
+# Record robot demonstrations
+piper-recorder --can-name can0 --output-dir ./recordings --fps 30
+
+# With camera recording (requires opencv-python)
+piper-recorder --enable-cameras
+```
+
+### Data Analysis
+```bash
+# View episode information
+piper-analyze recordings/episode_001.hdf5
+
+# Generate trajectory plots
+piper-analyze recordings/episode_001.hdf5 --plot
+
+# Export to numpy arrays
+piper-analyze recordings/episode_001.hdf5 --export-numpy ./data
+```
+
+### Hugging Face Upload
+```bash
+# Login to Hugging Face (one-time)
+python3 scripts/hf_login.py
+
+# Upload recordings to Hugging Face Hub
+python3 scripts/upload_to_huggingface.py
+```
+
+See [docs/PIPER_RECORDER_README.md](docs/PIPER_RECORDER_README.md) and [docs/HUGGINGFACE_UPLOAD_GUIDE.md](docs/HUGGINGFACE_UPLOAD_GUIDE.md) for details.
 
 ## 🎯 Use Cases
 
@@ -229,7 +271,9 @@ flake8 .
 - `numpy` - Numerical operations
 - `python-can` - CAN bus communication
 - `h5py` - HDF5 file format (for recording)
+- `opencv-python` - Camera capture and image processing (optional, for `--enable-cameras`)
 - `matplotlib` - Visualization (optional)
+- `huggingface_hub` - Upload datasets to Hugging Face (optional)
 
 ## 📝 License
 
