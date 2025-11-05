@@ -98,7 +98,7 @@ arm.go_to_joint_angles([0, 30, -60, 0, 90, 0])  # degrees
 
 # Cartesian space control
 arm.switch_mode_move_l(speed_percent=20)
-arm.go_to_tcp_pose(300, 0, 400, 180, 0, 0)  # mm and degrees
+arm.go_to_tcp_pose(X_mm=300, Y_mm=0, Z_mm=400, RX_deg=180, RY_deg=0, RZ_deg=0)  # mm and degrees
 
 # Gripper control
 arm.gripper_enable(effort=1000, clear_error=True)
