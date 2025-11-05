@@ -77,7 +77,7 @@ cd ..
 pip install -e .
 ```
 
-For detailed setup instructions, see [SETUP_GUIDE.md](SETUP_GUIDE.md).
+For detailed setup instructions, see [CAN Setup Guide](docs/CAN_SETUP_GUIDE.md).
 
 ## 📖 Usage
 
@@ -94,16 +94,16 @@ arm.enable(wait=True)
 
 # Joint space control
 arm.switch_mode_joint(speed_percent=30)
-arm.move_joints([0, 30, -60, 0, 90, 0])  # degrees
+arm.go_to_joint_angles([0, 30, -60, 0, 90, 0])  # degrees
 
 # Cartesian space control
-arm.switch_mode_cartesian(speed_percent=20)
-arm.move_tcp_pose([300, 0, 400, 180, 0, 0])  # mm and degrees
+arm.switch_mode_move_l(speed_percent=20)
+arm.go_to_tcp_pose(300, 0, 400, 180, 0, 0)  # mm and degrees
 
 # Gripper control
-arm.gripper_open()
-arm.gripper_close()
-arm.gripper_set_position(50)  # mm
+arm.gripper_enable(effort=1000, clear_error=True)
+arm.gripper_move(width_mm=20, effort_nm=1.5)  # Open
+arm.gripper_move(width_mm=0, effort_nm=1.0)  # Close
 
 # Disable when done
 arm.disable()
@@ -112,28 +112,21 @@ arm.disable()
 ### Recording Data for Imitation Learning
 
 ```python
-from easy_piper import LeRobotDataRecorder
+from easy_piper import EasyPiper
 
-# Initialize recorder
-recorder = LeRobotDataRecorder(can_name="can_piper", output_dir="./recordings")
+# Initialize arm
+arm = EasyPiper()
+arm.enable(wait=True)
 
-# In your control loop
-recorder.start_episode("episode_001")
-for step in range(1000):
-    # Get robot state
-    joints = arm.read_joints()
-    gripper = arm.read_gripper_angle()
-    
-    # Record frame
-    recorder.record_frame(joints, gripper)
-
-recorder.stop_episode()
+# Use the interactive CLI recorder
+# See examples/quick_start_recorder.py for detailed usage
 ```
 
-Or use the interactive CLI:
+Use the interactive CLI recorder:
 ```bash
-python3 -m piper_recorder
-# Then use commands: start, stop, status, quit
+piper-recorder
+# Or: python3 -m easy_piper.piper_recorder
+# Then use commands: start <episode_name>, stop, status, quit
 ```
 
 ## 📁 Project Structure
@@ -148,7 +141,7 @@ easy_piper/
 ├── examples/                  # Example scripts
 │   ├── simple_example.py
 │   ├── easy_piper_demo.py
-│   ├── load_recording_example.py
+│   ├── test_recorder_setup.py
 │   └── quick_start_recorder.py
 ├── scripts/                   # Utility scripts
 │   ├── can_activate.sh
@@ -254,7 +247,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🚀 Getting Started
 
-1. Follow the [SETUP_GUIDE.md](SETUP_GUIDE.md)
+1. Follow the installation instructions above
 2. Run `python3 examples/simple_example.py`
 3. Read the [User Guide](docs/EASY_PIPER_README.md)
 4. Check out more [examples](examples/)

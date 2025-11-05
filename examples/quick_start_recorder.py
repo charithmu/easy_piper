@@ -139,13 +139,13 @@ STEP 6: Record Multiple Demonstrations
 STEP 7: Analyze Your Recordings
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # View episode information
-    python3 load_recording_example.py recordings/pick_cube_demo_01_*.hdf5
+    piper-analyze recordings/pick_cube_demo_01_*.hdf5
     
     # Plot trajectories
-    python3 load_recording_example.py recordings/pick_cube_demo_01_*.hdf5 --plot
+    piper-analyze recordings/pick_cube_demo_01_*.hdf5 --plot
     
     # Export to numpy for training
-    python3 load_recording_example.py recordings/pick_cube_demo_01_*.hdf5 \\
+    piper-analyze recordings/pick_cube_demo_01_*.hdf5 \\
         --export-numpy ./numpy_data
 
 STEP 8: Use Data for Training
@@ -209,7 +209,7 @@ RECORDING TIPS
 5. DATA QUALITY
    - Check actual FPS matches target (shown in status)
    - Verify recording saves successfully
-   - Review recordings with load_recording_example.py
+   - Review recordings with piper-analyze
 
 TROUBLESHOOTING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -236,7 +236,7 @@ NEXT STEPS
    → piper-recorder
 
 3. Analyze recordings:
-   → python3 load_recording_example.py <recording_file> --plot
+   → piper-analyze <recording_file> --plot
 
 4. Integrate with your learning framework:
    → LeRobot, Diffusion Policy, ACT, etc.

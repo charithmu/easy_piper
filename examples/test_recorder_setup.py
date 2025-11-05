@@ -96,7 +96,7 @@ def check_file_structure():
     
     files_to_check = [
         'src/easy_piper/piper_recorder.py',
-        'examples/load_recording_example.py',
+        'src/easy_piper/piper_analyze.py',
         'src/easy_piper/easy_piper.py',
         'requirements.txt',
         'docs/PIPER_RECORDER_README.md',
