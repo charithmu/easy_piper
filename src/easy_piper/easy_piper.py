@@ -491,6 +491,25 @@ class EasyPiper:
             is_mit_mode=0x01 if is_mit else 0x00,
         )
 
+    def switch_mode_cartesian(self, speed_percent: int = 30, mode: str = "L") -> None:
+        """Switch to Cartesian motion mode (alias for move_l/move_p).
+
+        Convenience method for API consistency with README examples.
+
+        Args:
+            speed_percent: Speed as percentage (0-100)
+            mode: 'L' for linear motion, 'P' for point-to-point (default: 'L')
+
+        Raises:
+            ValueError: If mode is not 'L' or 'P'
+        """
+        if mode.upper() == "L":
+            self.switch_mode_move_l(speed_percent=speed_percent)
+        elif mode.upper() == "P":
+            self.switch_mode_move_p(speed_percent=speed_percent)
+        else:
+            raise ValueError("mode must be 'L' or 'P'")
+
     # ----------------------------
     # Joint motions
     # ----------------------------
@@ -515,6 +534,18 @@ class EasyPiper:
             raise ValueError("angles_deg must have 6 elements")
         j = [_deg_to_001deg(v) for v in angles_deg]
         self.iface.JointCtrl(j[0], j[1], j[2], j[3], j[4], j[5])
+
+    def move_joints(self, angles_deg: Sequence[float]) -> None:
+        """Alias for go_to_joint_angles for API consistency with README examples.
+
+        Move to absolute joint angles in degrees (length-6 sequence).
+
+        Args:
+            angles_deg: List/tuple of 6 joint angles in degrees
+
+        SDK: JointCtrl(j1..j6) in 0.001 deg.
+        """
+        self.go_to_joint_angles(angles_deg)
 
     # ----------------------------
     # TCP motions (Cartesian)
@@ -590,6 +621,43 @@ class EasyPiper:
         if wait_s > 0:
             time.sleep(wait_s)
 
+    def move_tcp_pose(
+        self,
+        pose: Sequence[float],
+        ensure_mode: Optional[str] = None,
+        speed_percent: int = 30,
+        wait_s: float = 0.0,
+    ) -> None:
+        """Move to TCP pose using list/tuple format (for API consistency with README).
+
+        Convenience method that accepts pose as a single sequence instead of separate args.
+
+        Args:
+            pose: Sequence of 6 values [X, Y, Z, RX, RY, RZ] in mm and degrees
+            ensure_mode: Optional[str] - If 'L' or 'P', switch to mode before moving
+            speed_percent: If switching mode, sets the mode speed
+            wait_s: Optional sleep after issuing the command
+
+        Raises:
+            ValueError: If pose doesn't have exactly 6 elements
+
+        SDK: EndPoseCtrl(X,Y,Z,RX,RY,RZ) with 0.001 mm/deg units.
+        """
+        if len(pose) != 6:
+            raise ValueError("pose must have 6 elements [X, Y, Z, RX, RY, RZ]")
+        
+        self.go_to_tcp_pose(
+            X_mm=pose[0],
+            Y_mm=pose[1],
+            Z_mm=pose[2],
+            RX_deg=pose[3],
+            RY_deg=pose[4],
+            RZ_deg=pose[5],
+            ensure_mode=ensure_mode,
+            speed_percent=speed_percent,
+            wait_s=wait_s,
+        )
+
     # ----------------------------
     # Gripper
     # ----------------------------
@@ -647,6 +715,39 @@ class EasyPiper:
             gripper_code=0x01,
             set_zero=0x00,
         )
+
+    def gripper_open(self, width_mm: float = 70.0, effort_nm: float = 1.0) -> None:
+        """Open gripper to specified width.
+
+        Convenience method for API consistency with README examples.
+
+        Args:
+            width_mm: Target gripper width in millimeters (default: 70mm, fully open)
+            effort_nm: Gripper effort in N·m (default: 1.0 N·m)
+        """
+        self.gripper_move(width_mm=width_mm, effort_nm=effort_nm)
+
+    def gripper_close(self, width_mm: float = 0.0, effort_nm: float = 1.5) -> None:
+        """Close gripper to specified width.
+
+        Convenience method for API consistency with README examples.
+
+        Args:
+            width_mm: Target gripper width in millimeters (default: 0mm, fully closed)
+            effort_nm: Gripper effort in N·m (default: 1.5 N·m for gripping)
+        """
+        self.gripper_move(width_mm=width_mm, effort_nm=effort_nm)
+
+    def gripper_set_position(self, width_mm: float, effort_nm: float = 1.0) -> None:
+        """Set gripper position (alias for gripper_move).
+
+        Convenience method for API consistency with README examples.
+
+        Args:
+            width_mm: Target gripper width in millimeters
+            effort_nm: Gripper effort in N·m (default: 1.0 N·m)
+        """
+        self.gripper_move(width_mm=width_mm, effort_nm=effort_nm)
 
     # ----------------------------
     # Advanced motion control
