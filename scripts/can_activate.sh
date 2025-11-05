@@ -20,7 +20,7 @@ fi
 # Check if can-utils is installed.
 if ! dpkg -l | grep -q "can-utils"; then
     echo "Error: can-utils not detected in the system."
-    echo "Please use the following command to install ethtool:"
+    echo "Please use the following command to install can-utils:"
     echo "sudo apt update && sudo apt install can-utils"
     exit 1
 fi

@@ -1,0 +1,38 @@
+# Development dependencies for EasyPiper
+# Install with: pip install -r requirements-dev.txt
+
+# Core dependencies (from requirements.txt)
+numpy>=1.21.0
+python-can>=3.3.4
+h5py>=3.8.0
+opencv-python>=4.8.0
+matplotlib>=3.5.0
+
+# Testing
+pytest>=6.0
+pytest-cov>=3.0
+pytest-mock>=3.6
+pytest-timeout>=2.1
+
+# Code quality
+black>=22.0
+flake8>=4.0
+flake8-docstrings>=1.6
+flake8-bugbear>=22.0
+isort>=5.10
+mypy>=0.950
+
+# Documentation
+sphinx>=4.0
+sphinx-rtd-theme>=1.0
+
+# Build tools
+build>=0.7
+twine>=3.4
+setuptools>=45
+wheel>=0.37
+
+# Development utilities
+ipython>=8.0
+ipdb>=0.13
+pre-commit>=2.15
