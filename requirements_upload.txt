@@ -1,0 +1,2 @@
+# Requirements for uploading to Hugging Face
+huggingface_hub>=0.20.0
